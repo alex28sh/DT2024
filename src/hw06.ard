@@ -6,6 +6,7 @@
 \import Paths.Meta
 \import lect06
 \open Nat(+,*)
+\import Arith.Nat (pred)
 
 -- 1. Определите предикат принадлежности элемента списку.
 
@@ -84,10 +85,26 @@
 \func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
 
 \func isEven-dec : DecPred isEven =>
-  \lam n => \case n \as n \return Decide (isEven 0) \with {
-    | 0 => yes (isEven 0)
-    | suc n => no \lam p => \case p
-  }
+  isEven-helper
+  \where \func isEven-helper (n : Nat) : Decide (isEven n)
+    | 0 => yes (0, idp)
+    | 1 => no (\lam p => \case p \with
+       {
+         | (0, p) => \case p
+         | (suc n, p) => \case p
+       }
+    )
+    | suc (suc n) => \case isEven-helper n \as d \return Decide (isEven (suc (suc n))) \with {
+      | yes (k, p) => yes (suc k, pmap (\lam x => suc (suc x)) p)
+      | no p => no (\lam p0 => \case p0 \with
+      {
+        | (0, p1) => \case p1
+        | (suc k, p1) => \case (pmap (\lam x => pred (pred x)) p1) \with {
+          | p2 => p (k, p2)
+        }
+      }
+      )
+    }
 
 -- 10. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
