@@ -107,7 +107,9 @@
   | return a => state' $ \lam s => (s, a)
   | >>= (state' a) g => state' (\lam s =>
       \let (s', a') => a s
-      \in g a'
+      \in \case g a' \with {
+        | state' f => f s'
+      }
    )
   | left-id a f => cases (f a) \with {
     | state' x => idp
