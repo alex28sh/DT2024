@@ -1,5 +1,11 @@
+\import Algebra.Meta
+\import Arith.Nat
 \import Data.Bool
-\import Data.List \hiding (headDef)
+\import Data.List
+\import Data.Or
+\import Meta
+\import Paths
+\import Paths.Meta
 \import hw06
 \import lect08
 \import Order.LinearOrder
@@ -10,15 +16,108 @@
 --    * Все элементы filter p xs удовлетворяют предикату p
 --    * Любой подсписок xs с тем же свойством является подсписком filter p xs
 
+\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | List.nil => List.nil
+  | :: x xs => \case (p x) \with {
+    | true => :: x (filter' p xs)
+    | false => filter' p xs
+  }
+
+\func SubList-lem {A : \Type} (xs : List A) (p : A -> Bool) : SubList (filter' p xs) xs \elim xs
+  | List.nil => nil_sub
+  | :: a ys =>
+    cases (p a) \with {
+      | true => step_sub_eq idp (SubList-lem ys p)
+      | false => step_sub_neq (SubList-lem ys p)
+    }
+
+\data ForallMy {A : \Type} (p : A -> Bool) (xs : List A) \elim xs
+  | nil => nil-forall
+  | :: a xs => cons-forall (p a = true) (ForallMy p xs)
+
+\func filter-correct {A : \Type} (xs : List A) (p : A -> Bool) : ForallMy p (filter' p xs) \elim xs
+  | List.nil => nil-forall -- idp
+  | :: a ys => cases (p a arg addPath) \with {
+    | true, pa=t => cons-forall pa=t (filter-correct ys p)
+    | false, pa=t => filter-correct ys p
+  }
+
+\func filter-max {A : \Type} (xs : List A) (p : A -> Bool) (ys : List A) (sub : SubList ys xs) (all : ForallMy p ys) : SubList ys (filter' p xs) \elim xs, ys, sub, all
+  | xs1, nil, _, _  => nil_sub
+  | :: y xs1, :: a ys1, step_sub_eq p1 sub1, cons-forall p2 all1 => rewrite p1 (cases (p y arg addPath) \with {
+    | false, p3 => \case (rewrite (rewrite p1 p2) p3)
+    | true, p3 => step_sub_eq idp (filter-max xs1 p ys1 sub1 all1)
+    })
+  | :: y xs1, :: a ys1, step_sub_neq sub1, cons-forall p1 all1 => cases (p y arg addPath) \with {
+    | false, p3 => filter-max xs1 p (a :: ys1) sub1 (cons-forall p1 all1)
+    | true, p3 => step_sub_neq (filter-max xs1 p (a :: ys1) sub1 (cons-forall p1 all1))
+  }
+
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
+
+\func lemma-perms {A : Dec} (l1 l2 : List A) : Perm l1 l2 <-> Perm l2 l1
+  => (swap-perm l1 l2, swap-perm l2 l1)
+  \where {
+    \func swap-perm {A : Dec} (l1 l2 : List A) (p : Perm l1 l2) : Perm l2 l1 \elim l1, l2, p
+      | nil, nil, perm-nil => perm-nil
+      | :: a l1, :: b l2, perm-:: p p1 => perm-:: (inv p) (swap-perm l1 l2 p1)
+      | l1, l2, perm-trans {ys} p1 p2 => perm-trans (swap-perm ys l2 p2) (swap-perm l1 ys p1)
+      | :: a (:: a1 l1), :: b (:: b1 l2), perm-swap p p1 p2 => perm-swap (inv p1) (inv p) (inv p2)
+  }
+
+\func lemma-perm-sorted {A : Dec} (l1 l2 : List A) (p1 : Sorted l1) (p2 : Sorted l2) (p3 : Perm l1 l2) : l1 = l2 => {?}
+
+\func perm-sort-eq {A : Dec} (l1 l2 : List A) : Perm l1 l2 <-> (Insertion.sort l1 = Insertion.sort l2)
+  => (left-to-right, right-to-left)
+  \where {
+    \func right-to-left {A : Dec} {l1 l2 : List A} (p : Insertion.sort l1 = Insertion.sort l2) : Perm l1 l2
+      => perm-trans (Insertion.sort-perm l1) (rewrite p ((lemma-perms l2 (Insertion.sort l2)).1 (Insertion.sort-perm l2)))
+
+    \func left-to-right {A : Dec} {l1 l2 : List A} (p : Perm l1 l2) : Insertion.sort l1 = Insertion.sort l2 =>
+      \let p1 => Insertion.sort-perm l1
+          | p2 => Insertion.sort-perm l2
+          | p_f => (lemma-perms (Insertion.sort l1) l1).2
+          | p3 => perm-trans (p_f p1) (perm-trans p p2)
+      \in lemma-perm-sorted (Insertion.sort l1) (Insertion.sort l2) (Insertion.sort-sorted l1) (Insertion.sort-sorted l2) p3
+  }
 
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
 
 \func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
-  => {?}
+  => rewrite (sort-lemma (sort l) s) ((perm-sort-eq (sort l) l).1 ((lemma-perms l (sort l)).1 p))
+  \where {
+    \func sort-lemma {A : Dec} (l : List A) (s : Sorted l) : l = Insertion.sort l \elim l, s {
+      | nil, _ => idp
+      | :: a l, (sorted-:: p1 p2) => rewriteI (sort-lemma l p2) (insert-lemma l a p2 p1)
+    }
+
+    \func insert-lemma {A : Dec} (l : List A) (a : A) (s : Sorted l) (p : a <= headDef a l) :  a :: l = Insertion.sort.insert a l \elim l {
+      | nil => idp
+      | :: a1 l => rewrite (dec<=_reduce p) idp
+    }
+  }
 
 -- 4. Определите факториал через хвостовую рекурсию.
 --    Докажите, что он равен обычному определению факториала.
+
+\func fact (n : Nat) : Nat
+  | zero => 1
+  | suc n => n Nat.* fact n
+
+\func factTail (n : Nat) : Nat
+  => factTail-acc n 1
+  \where {
+    \func factTail-acc (n acc : Nat) : Nat
+      | zero, acc => acc
+      | suc n, acc => factTail-acc n (n Nat.* acc)
+  }
+
+\func factTail-correct (n : Nat) : factTail n = fact n => rewrite (factTail-correct-acc n 1) NatSemiring.*-comm
+ \where {
+   \func factTail-correct-acc (n acc : Nat) : factTail.factTail-acc n acc = acc Nat.* fact n \elim n, acc
+     | zero, acc => idp
+     | suc n, acc => rewrite (factTail-correct-acc, inv NatSemiring.*-assoc, NatSemiring.*-comm {n} {acc}) idp
+ }
 
 -- 5. Определите функцию, которая проверяет правильность скобочной последовательности.
 --    Докажите ее корректность.
