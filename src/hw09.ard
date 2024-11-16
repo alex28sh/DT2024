@@ -1,26 +1,77 @@
 \import Data.Maybe
-\import lect06 (Decide)
+\import Logic
+\import Logic.Meta
+\import Meta
+\import Paths.Meta
+\import lect06 (Decide, no, yes)
 \import lect09
 
 -- 1. Определите отношение многошаговой редукции на Term.
 
-\func Red {V : \Set} (t s : Term V) : \Type => {?}
+\data TransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+  | closure-base (R x y)
+  | closure-trans (z : A) (r1 : R x z) (r2 : TransClosure R z y)
+
+\func Red {V : \Set} (t s : Term V) : \Type => TransClosure Red1 t s
 
 -- 2. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм, к которому он редуцируется за 1 шаг, либо доказательство, что таких термов нет.
 --    Определите любую стратегию редукции.
 
-\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) => {?}
+\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
+  | var v => no (\lam (p1, p2) => \case p2)
+  | unit => no (\lam (p1, p2) => \case p2)
+  | app t1 t2 => \case strategy t1 \with {
+    | yes (s1, p1) => yes (app s1 t2, app-left p1 idp)
+    | no p1 => \case strategy t2 \with {
+      | yes (s2, p2) => yes (app t1 s2, app-right idp p2)
+      | no p2 => \case t1 \as tt, idp : t1 = tt \with {
+        | lam s, _x => yes (_, beta _x idp)
+        | unit, _x => no (\lam (p3, p4) => aux t1 t2 p3 (\lam (_x, eqx) => contradiction) p4 p2 p1)
+        | var v, _x => no (\lam (p3, p4) => aux t1 t2 p3 (\lam (_x, eqx) => contradiction) p4 p2 p1)
+        | app t t3, _x => no (\lam (p3, p4) => aux t1 t2 p3 (\lam (_x, eqx) => contradiction) p4 p2 p1)
+      }
+    }
+  }
+  | lam t => \case strategy t \with {
+    | yes (s, p) => yes (lam s, red-lam p)
+    | no p => no (\lam (p1, p2) => aux' t p1 p2 p)
+  }
+  \where {
+
+    \func aux  {V : \Set}
+               (t1 t2 s : Term V)
+               (t1NotLam : Not (\Sigma (s : Term (Maybe V)) (t1 = lam s)))
+               (p1 : Red1 (app t1 t2) s)
+               (p2 : Not (\Sigma (q : Term V) (Red1 t2 q)))
+               (p3 : Not (\Sigma (q : Term V) (Red1 t1 q))): Empty \elim s, p1
+      | s, beta {f} w0 w1 => t1NotLam (f, w0)
+      | app t1 t2, app-left w0 w1 => p3 (t1, w0)
+      | app t1 t2, app-right w0 w1 => p2 (t2, w1)
+
+
+    \func aux' {V : \Set}
+               (t : Term (Maybe V))
+               (s : Term V)
+               (rs : Red1 (lam t) s)
+               (no : Not (\Sigma (q : Term (Maybe V)) (Red1 t q)))
+      : Empty \elim s, rs
+      | lam s, red-lam rs => no (s, rs)
+  }
+
 
 -- 3. Докажите, что подтермы достижимого терма достижимы.
 
-\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
-  => {?}
+\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a {
+  | acc t' => acc (\lam {a'} r => appAccLeft (t' (app-left r idp)))
+}
 
-\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s
-  => {?}
+\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s \elim a {
+  | acc t' => acc (\lam {a'} r => appAccRight (t' (app-right idp r)))
+}
 
-\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t
-  => {?}
+\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim a {
+  | acc t' => acc (\lam {a'} r => subLamAcc (t' (red-lam r)))
+}
 
 -- 4. Определите функцию, которая по достижимому терму возвращает длину максимальной цепочки редукций из него.
 
