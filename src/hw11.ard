@@ -1,24 +1,41 @@
 \import Data.Bool
-\import Logic (<->)
+\import Equiv
+\import Function.Meta
+\import Logic (<->, inP, truncP)
 \import lect11
 
 -- 1. Докажите, что если A : \Prop, то Trunc A эквивалентен A.
 
-\func trunc-prop {A : \Prop} : Trunc A <-> A => {?}
+\func trunc-prop {A : \Prop} : Trunc A <-> A => (\lam x => \case x \with { trunc a => a }, \lam x => trunc x)
 
 -- 2. Докажите следующий закон де Моргана.
 
-\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => {?}
+\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => (
+  \lam p => \case p.2 \with {
+    | inl a => inl (p.1, a)
+    | inr b => inr (p.1, b)
+  },
+  \lam p => \case p \with {
+    | inl a => (a.1, inl a.2)
+    | inr b => (b.1, inr b.2)
+  }
+)
+
+-- взял скопировал из библиотеки, почему-то не импортилась
+\lemma prop-pi {A : \Prop} {a a' : A} : a = a'
+  => \case truncP (inP a) (inP a') __ \with {
+    | inP x => x
+  }
 
 -- 3. Определите элиминатор для Or через Or-rec, не используя паттерн матчинг на Or.
 
 \func Or-elim {A B : \Prop} (C : Or A B -> \Prop)
               (f : \Pi (x : A) -> C (inl x)) (g : \Pi (y : B) -> C (inr y))
-              (p : A `Or` B) : C p => {?}
+              (p : A `Or` B) : C p => Or-rec (\lam x => transport C prop-pi (f x)) (\lam x => transport C prop-pi (g x)) p
 
 -- 4. Докажите, что тип утверждений является множеством.
 
-\func prop-isSet : isSet \Prop => {?}
+\func prop-isSet : isSet \Prop => \lam x y a b => prop-pi
 
 -- 5. Докажите, что функции Prop1-to-Prop2 и Prop2-to-Prop1 взаимно обратны и, как следствие, что Prop1 = Prop2.
 
