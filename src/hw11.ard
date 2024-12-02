@@ -2,6 +2,7 @@
 \import Equiv
 \import Function.Meta
 \import Logic (<->, inP, truncP)
+\import Paths.Meta
 \import lect11
 
 -- 1. Докажите, что если A : \Prop, то Trunc A эквивалентен A.
@@ -47,7 +48,12 @@
 
 \func isCogenerator (C : \Type) => \Pi {A B : \Set} (f g : A -> B) (p : \Pi (h : B -> C) -> h `o` f = h `o` g) -> f = g
 
-\func PropIsCogenerator : isCogenerator \Prop => {?}
+\func PropIsCogenerator : isCogenerator \Prop =>
+  \lam f g p =>
+      ext (\lam x => \case (p (\lam y => f x = y)) \with {
+      | p1 =>
+        transport (\lam t => t x) p1 idp
+    })
 
 -- 6b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B сущесвует функция l : B -> X такая, что l `o` i = f.
 --     Докажите, что \Prop инъективен.
